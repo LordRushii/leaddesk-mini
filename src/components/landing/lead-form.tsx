@@ -180,7 +180,7 @@ export function LeadCaptureForm() {
             Agency Inquiry Form
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            Let's build your lead engine
+            Let&apos;s build your lead engine
           </h2>
           <p className="mt-1 text-sm text-slate-400">
             Fill out the form below to request a tailored agency proposal.
