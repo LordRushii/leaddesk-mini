@@ -1,5 +1,7 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import * as z from "zod";
+import { leadSchema, leadStatus } from "../src/lib/validations/lead";
 
 export const getLeads = query({
   args: {},
@@ -23,6 +25,17 @@ export const createLead = mutation({
     createdAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const validation = leadSchema.safeParse({
+      name: args.name,
+      email: args.email,
+      budget: args.budgetRange,
+      message: args.message,
+    });
+
+    if (!validation.success) {
+      throw new ConvexError(validation.error.issues[0]?.message ?? "Invalid lead data.");
+    }
+
     return await ctx.db.insert("leads", {
       name: args.name,
       email: args.email.toLowerCase().trim(),
@@ -40,6 +53,12 @@ export const updateLeadStatus = mutation({
     status: v.union(v.literal("New"), v.literal("Contacted"), v.literal("Closed")),
   },
   handler: async (ctx, args) => {
+    const validation = z.enum(leadStatus).safeParse(args.status);
+
+    if (!validation.success) {
+      throw new ConvexError(validation.error.issues[0]?.message ?? "Invalid lead status.");
+    }
+
     await ctx.db.patch(args.id, { status: args.status });
   },
 });
