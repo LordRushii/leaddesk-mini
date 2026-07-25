@@ -4,8 +4,8 @@ A lead-capture product built for the Digital Heroes Full Stack Development
 internship task: a public landing page with a lead form, and an admin
 dashboard to manage submissions.
 
-**Live app:** [https://leaddesk-mini-jet-phi.vercel.app/]
-**Admin:** [add your Vhttps://leaddesk-mini-jet-phi.vercel.app/admin]
+**Live app:** https://leaddesk-mini-jet-phi.vercel.app/
+**Admin:** https://leaddesk-mini-jet-phi.vercel.app/admin
 
 ## Stack
 
