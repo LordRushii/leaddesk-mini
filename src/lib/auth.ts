@@ -26,31 +26,6 @@ export interface AuthenticatedUser {
 
 const SESSION_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-export async function ensureDefaultAdmin() {
-  try {
-    const convex = getConvexClient();
-    const defaultEmail = "admin@leaddesk.com";
-    const existingUsers = await convex.query(api.users.listUsers, {});
-    const existingAdmin = existingUsers.find((user) =>
-      user.role.toLowerCase().includes("admin")
-    );
-
-    if (!existingAdmin) {
-      const passwordHash = await hashPassword("admin123456");
-      await convex.mutation(api.users.createUser, {
-        name: "LeadDesk Admin",
-        email: defaultEmail,
-        passwordHash,
-        role: "Super Admin",
-        createdAt: Date.now(),
-      });
-      console.log("Default admin account created: admin@leaddesk.com / admin123456");
-    }
-  } catch (err) {
-    console.error("Failed to seed default admin:", err);
-  }
-}
-
 export async function registerUser(input: unknown) {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) {
@@ -156,7 +131,6 @@ export async function loginUser(input: unknown) {
 
   try {
     const convex = getConvexClient();
-    await ensureDefaultAdmin();
 
     const user = await convex.query(api.users.getUserByEmail, { email });
     if (!user) {

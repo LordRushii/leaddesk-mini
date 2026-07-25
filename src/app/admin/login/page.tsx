@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loginUser } from "@/lib/auth";
@@ -8,10 +8,17 @@ import { Lock, Mail, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const demoEmail = process.env.NEXT_PUBLIC_DEMO_ADMIN_EMAIL || "";
+  const demoPassword = process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD || "";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,9 +40,10 @@ export default function AdminLoginPage() {
     }
   };
 
-  const handleFillDemo = () => {
-    setEmail("admin@leaddesk.com");
-    setPassword("admin123456");
+  const handleFillVerificationCredentials = () => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setError(null);
   };
 
   return (
@@ -78,7 +86,7 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@leaddesk.com"
+                placeholder="admin@yourcompany.com"
                 className="w-full pl-9 pr-4 py-2 text-sm bg-secondary/30 border border-border rounded-md focus:outline-none focus:border-foreground transition-all"
               />
             </div>
@@ -120,20 +128,23 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        {/* Demo Credentials Quick Fill */}
-        <div className="mt-6 pt-6 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Bcrypt + Convex Auth</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleFillDemo}
-            className="text-foreground hover:underline font-mono text-[11px]"
-          >
-            Fill Demo Admin
-          </button>
+        <div className="mt-6 pt-6 border-t border-border/60 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+          <span>Bcrypt + Convex Auth</span>
         </div>
+
+        {isMounted && demoEmail && demoPassword && (
+          <div className="mt-4 flex flex-col items-center gap-2 text-center">
+            <button
+              type="button"
+              onClick={handleFillVerificationCredentials}
+              className="inline-flex items-center rounded-full border border-border bg-secondary/60 px-3 py-1.5 text-[11px] font-medium text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-secondary hover:shadow-md"
+            >
+              Fill demo credentials
+            </button>
+            <p className="text-[10px] text-muted-foreground">For local verification only.</p>
+          </div>
+        )}
       </div>
     </div>
   );
