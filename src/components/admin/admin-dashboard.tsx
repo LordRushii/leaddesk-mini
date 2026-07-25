@@ -9,9 +9,10 @@ import {
   TrendingUp,
   ChevronDown,
   Inbox,
-  MoreHorizontal,
   CheckCircle2,
   ArrowUpDown,
+  Eye,
+  ChevronUp,
   Users,
   LayoutDashboard,
   UserPlus,
@@ -38,7 +39,6 @@ import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 
 type DashboardTab = "leads" | "users";
-type DashboardViewMode = "data" | "skeleton" | "empty";
 
 interface AdminUserDetail {
   _id: string;
@@ -59,8 +59,9 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
   const updateLeadStatus = useMutation(api.leads.updateLeadStatus);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
-  const [viewMode, setViewMode] = useState<DashboardViewMode>("data");
   const [statusMenuOpenId, setStatusMenuOpenId] = useState<string | null>(null);
+  const [statusMenuPosition, setStatusMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [expandedLeadId, setExpandedLeadId] = useState<Id<"leads"> | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -109,6 +110,28 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
     [updateLeadStatus]
   );
 
+  const toggleStatusMenu = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>, leadId: Id<"leads">) => {
+      if (statusMenuOpenId === leadId) {
+        setStatusMenuOpenId(null);
+        setStatusMenuPosition(null);
+        return;
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuWidth = 144;
+      const menuHeight = 128;
+      const top =
+        rect.bottom + menuHeight <= window.innerHeight
+          ? rect.bottom + 6
+          : rect.top - menuHeight - 6;
+      const left = Math.min(Math.max(8, rect.left), window.innerWidth - menuWidth - 8);
+      setStatusMenuPosition({ top, left });
+      setStatusMenuOpenId(leadId);
+    },
+    [statusMenuOpenId]
+  );
+
   const getStatusBadgeStyle = (status: AdminLead["status"]) => {
     switch (status) {
       case "New":
@@ -126,7 +149,9 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
       columnHelper.accessor("_id", {
         header: "Lead ID",
         cell: (info) => (
-          <span className="text-xs font-mono text-muted-foreground">{info.getValue()}</span>
+          <span className="text-xs font-mono text-muted-foreground" title={info.getValue()}>
+            {info.getValue().slice(-6).toUpperCase()}
+          </span>
         ),
       }),
       columnHelper.accessor("name", {
@@ -189,7 +214,7 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
           return (
             <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
               <button
-                onClick={() => setStatusMenuOpenId(statusMenuOpenId === rowId ? null : rowId)}
+                onClick={(event) => toggleStatusMenu(event, rowId)}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium font-mono uppercase tracking-wider border cursor-pointer hover:opacity-80 transition-opacity",
                   getStatusBadgeStyle(status)
@@ -199,20 +224,6 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
                 <ChevronDown className="w-3 h-3 opacity-50" />
               </button>
 
-              {statusMenuOpenId === rowId && (
-                <div className="absolute top-full left-0 mt-1 w-32 rounded-md bg-popover border border-border shadow-lg p-1 z-50">
-                  {(["New", "Contacted", "Closed"] as const).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => void cycleStatus(rowId, st)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs font-medium flex items-center justify-between hover:bg-secondary transition-colors text-foreground"
-                    >
-                      {st}
-                      {status === st && <CheckCircle2 className="w-3 h-3 text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           );
         },
@@ -220,16 +231,30 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
       columnHelper.display({
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
-        cell: () => (
+        cell: (info) => (
           <div className="text-right">
-            <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
-              <MoreHorizontal className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedLeadId((current) =>
+                  current === info.row.original._id ? null : info.row.original._id
+                );
+              }}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-secondary transition-colors"
+            >
+              {expandedLeadId === info.row.original._id ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <Eye className="w-3.5 h-3.5" />
+              )}
+              {expandedLeadId === info.row.original._id ? "Hide" : "View"}
             </button>
           </div>
         ),
       }),
     ],
-    [statusMenuOpenId, cycleStatus]
+    [expandedLeadId, toggleStatusMenu]
   );
 
   const finalLeads = useMemo(() => {
@@ -382,23 +407,6 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
                 </p>
               </div>
 
-              {/* Debug View Switcher */}
-              <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-md border border-border text-xs">
-                {(["data", "skeleton", "empty"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className={cn(
-                      "px-2.5 py-1 rounded font-medium capitalize cursor-pointer",
-                      viewMode === mode
-                        ? "bg-card text-foreground shadow-sm border border-border"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* KPI Stat Cards */}
@@ -482,36 +490,15 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
                     ))}
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {/* SKELETON STATE */}
-                    {viewMode === "skeleton" &&
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i} className="animate-pulse">
-                          <td className="px-5 py-4">
-                            <div className="h-4 w-12 bg-border/50 rounded" />
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="h-4 w-24 bg-border/50 rounded" />
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="h-4 w-32 bg-border/50 rounded" />
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="h-4 w-16 bg-border/50 rounded" />
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="h-4 w-20 bg-border/50 rounded" />
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="h-6 w-20 bg-border/50 rounded-full" />
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            <div className="h-4 w-4 bg-border/50 rounded ml-auto" />
-                          </td>
-                        </tr>
-                      ))}
+                    {queriedLeads === undefined && (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-20 text-center text-sm text-muted-foreground">
+                          Loading live leads...
+                        </td>
+                      </tr>
+                    )}
 
-                    {/* EMPTY STATE */}
-                    {(viewMode === "empty" || (viewMode === "data" && finalLeads.length === 0)) && (
+                    {queriedLeads !== undefined && finalLeads.length === 0 && (
                       <tr>
                         <td colSpan={7} className="px-5 py-20 text-center">
                           <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -525,20 +512,42 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
                       </tr>
                     )}
 
-                    {/* DATA STATE */}
-                    {viewMode === "data" &&
-                      table.getRowModel().rows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="hover:bg-secondary/30 transition-colors group cursor-pointer"
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="px-5 py-3">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
+                    {queriedLeads !== undefined &&
+                      table.getRowModel().rows.map((row) => {
+                        const lead = row.original;
+                        const isExpanded = expandedLeadId === lead._id;
+                        return (
+                          <React.Fragment key={row.id}>
+                            <tr className="hover:bg-secondary/30 transition-colors group">
+                              {row.getVisibleCells().map((cell) => (
+                                <td key={cell.id} className="px-5 py-3">
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </td>
+                              ))}
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-secondary/20 border-t border-border/40">
+                                <td colSpan={7} className="px-5 py-4">
+                                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] items-start">
+                                    <div className="min-w-0">
+                                      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                                        Project details
+                                      </p>
+                                      <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+                                        {lead.message}
+                                      </p>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground md:text-right space-y-1">
+                                      <p>Full lead ID</p>
+                                      <p className="font-mono text-foreground break-all">{lead._id}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -624,6 +633,33 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
           </div>
         )}
       </main>
+
+      {statusMenuOpenId && statusMenuPosition && (
+        <div
+          className="fixed w-36 rounded-md bg-popover border border-border shadow-xl p-1 z-[70]"
+          style={{ top: statusMenuPosition.top, left: statusMenuPosition.left }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {(["New", "Contacted", "Closed"] as const).map((status) => {
+            const lead = leads.find((item) => item._id === statusMenuOpenId);
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => {
+                  if (lead) void cycleStatus(lead._id, status);
+                  setStatusMenuOpenId(null);
+                  setStatusMenuPosition(null);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded text-xs font-medium flex items-center justify-between hover:bg-secondary transition-colors text-foreground"
+              >
+                {status}
+                {lead?.status === status && <CheckCircle2 className="w-3 h-3 text-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add Admin User Modal */}
       {isAddUserOpen && (
