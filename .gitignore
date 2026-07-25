@@ -40,8 +40,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# ignore all readme files except README.md
-[rR][eE][aA][dD][mM][eE]*
+# agent skills and instructions
+.agents/
+.claude/
+skills-lock.json
+
+# markdown files (except README.md)
+*.md
 !README.md
 !readme.md
+
 
