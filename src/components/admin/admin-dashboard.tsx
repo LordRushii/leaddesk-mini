@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -32,8 +32,10 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
-import type { Lead } from "@/lib/validations/lead";
 import { logoutUser, createAdminUser, listAdminUsers, AuthenticatedUser } from "@/lib/auth";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 
 type DashboardTab = "leads" | "users";
 type DashboardViewMode = "data" | "skeleton" | "empty";
@@ -46,43 +48,15 @@ interface AdminUserDetail {
   createdAt: number;
 }
 
-// Initial/Mock Leads
-const INITIAL_LEADS: Lead[] = [
-  {
-    id: "LD-001",
-    name: "Elena Rostova",
-    email: "elena@vanguarddigital.io",
-    budget: "50k+",
-    status: "New",
-    createdAt: "2026-07-25",
-    message: "Looking for an end-to-end agency partner for our Q4 SaaS rebranding.",
-  },
-  {
-    id: "LD-002",
-    name: "Marcus Vance",
-    email: "m.vance@apexcreative.co",
-    budget: "25k-50k",
-    status: "Contacted",
-    createdAt: "2026-07-24",
-    message: "We need custom conversion rate optimization.",
-  },
-  {
-    id: "LD-003",
-    name: "Sophia Lin",
-    email: "sophia@nexuslabs.dev",
-    budget: "10k-25k",
-    status: "Closed",
-    createdAt: "2026-07-22",
-    message: "Retainer agreement signed for full stack web development.",
-  },
-];
-
-const columnHelper = createColumnHelper<Lead>();
+type AdminLead = Doc<"leads">;
+const columnHelper = createColumnHelper<AdminLead>();
 
 export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
+  const queriedLeads = useQuery(api.leads.getLeads);
+  const leads = useMemo(() => queriedLeads ?? [], [queriedLeads]);
+  const updateLeadStatus = useMutation(api.leads.updateLeadStatus);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [viewMode, setViewMode] = useState<DashboardViewMode>("data");
@@ -127,14 +101,15 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
   };
 
   // Toggle lead status
-  const cycleStatus = (id: string, newStatus: Lead["status"]) => {
-    setLeads((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
-    );
-    setStatusMenuOpenId(null);
-  };
+  const cycleStatus = useCallback(
+    async (id: Id<"leads">, newStatus: AdminLead["status"]) => {
+      await updateLeadStatus({ id, status: newStatus });
+      setStatusMenuOpenId(null);
+    },
+    [updateLeadStatus]
+  );
 
-  const getStatusBadgeStyle = (status: Lead["status"]) => {
+  const getStatusBadgeStyle = (status: AdminLead["status"]) => {
     switch (status) {
       case "New":
         return "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border-blue-200 dark:border-blue-900";
@@ -148,7 +123,7 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
   // Define lead columns
   const columns = useMemo(
     () => [
-      columnHelper.accessor("id", {
+      columnHelper.accessor("_id", {
         header: "Lead ID",
         cell: (info) => (
           <span className="text-xs font-mono text-muted-foreground">{info.getValue()}</span>
@@ -170,7 +145,7 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
         header: "Work Email",
         cell: (info) => <span className="text-muted-foreground">{info.getValue()}</span>,
       }),
-      columnHelper.accessor("budget", {
+      columnHelper.accessor("budgetRange", {
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -193,7 +168,9 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
           </button>
         ),
         cell: (info) => (
-          <span className="font-mono text-xs text-muted-foreground">{info.getValue()}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {new Date(info.getValue()).toLocaleDateString()}
+          </span>
         ),
       }),
       columnHelper.accessor("status", {
@@ -208,7 +185,7 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
         ),
         cell: (info) => {
           const status = info.getValue();
-          const rowId = info.row.original.id;
+          const rowId = info.row.original._id;
           return (
             <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
               <button
@@ -227,7 +204,7 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
                   {(["New", "Contacted", "Closed"] as const).map((st) => (
                     <button
                       key={st}
-                      onClick={() => cycleStatus(rowId, st)}
+                      onClick={() => void cycleStatus(rowId, st)}
                       className="w-full text-left px-2 py-1.5 rounded text-xs font-medium flex items-center justify-between hover:bg-secondary transition-colors text-foreground"
                     >
                       {st}
@@ -252,7 +229,7 @@ export function AdminDashboard({ initialUser }: { initialUser: AuthenticatedUser
         ),
       }),
     ],
-    [statusMenuOpenId]
+    [statusMenuOpenId, cycleStatus]
   );
 
   const finalLeads = useMemo(() => {

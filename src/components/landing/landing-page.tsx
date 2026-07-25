@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Loader2, Info } from "lucide-react";
 import { leadSchema, type LeadFormData, budgetRanges } from "@/lib/validations/lead";
 import { cn } from "@/lib/utils";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 // --- Form Field Wrapper Primitive ---
 function FormField({
@@ -41,6 +43,8 @@ function FormField({
 // --- Main Landing Page Component ---
 export function LandingPage() {
   const [submitState, setSubmitState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const createLead = useMutation(api.leads.createLead);
 
   const {
     register,
@@ -60,11 +64,21 @@ export function LandingPage() {
 
   const onSubmit = async (data: LeadFormData) => {
     setSubmitState("loading");
-    // Simulate server action
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setSubmitState("success");
-    reset();
-    setTimeout(() => setSubmitState("idle"), 4000);
+    setSubmitError(null);
+    try {
+      await createLead({
+        name: data.name,
+        email: data.email,
+        budgetRange: data.budget,
+        message: data.message,
+      });
+      setSubmitState("success");
+      reset();
+      setTimeout(() => setSubmitState("idle"), 4000);
+    } catch (error) {
+      setSubmitState("error");
+      setSubmitError(error instanceof Error ? error.message : "Unable to submit your request");
+    }
   };
 
   return (
@@ -256,6 +270,11 @@ export function LandingPage() {
                     )}
                   </AnimatePresence>
                 </button>
+                {submitState === "error" && submitError && (
+                  <p className="mt-2 text-xs text-destructive" role="alert">
+                    {submitError}
+                  </p>
+                )}
               </div>
             </form>
           </div>

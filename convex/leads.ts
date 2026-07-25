@@ -12,7 +12,12 @@ export const createLead = mutation({
   args: {
     name: v.string(),
     email: v.string(),
-    budgetRange: v.string(),
+    budgetRange: v.union(
+      v.literal("5k-10k"),
+      v.literal("10k-25k"),
+      v.literal("25k-50k"),
+      v.literal("50k+")
+    ),
     message: v.string(),
     status: v.optional(v.union(v.literal("New"), v.literal("Contacted"), v.literal("Closed"))),
     createdAt: v.optional(v.number()),
